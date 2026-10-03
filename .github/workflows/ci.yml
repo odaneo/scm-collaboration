@@ -1,0 +1,33 @@
+name: 1A build and test
+on: [push, pull_request]
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:18.6-bookworm@sha256:3725f4e2499eef5134592b3b4ab79a543ed7f8e533b05b5b637af926630f6650
+        env:
+          POSTGRES_USER: scm_test
+          POSTGRES_PASSWORD: ci-ephemeral-only
+          POSTGRES_DB: scm_procurement_test
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U scm_test -d scm_procurement_test" --health-interval 3s --health-timeout 3s --health-retries 20
+    env:
+      SCM_TEST_CONNECTION: Host=localhost;Port=5432;Database=scm_procurement_test;Username=scm_test;Password=ci-ephemeral-only
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.20.0
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: dotnet restore ScmCollaboration.slnx --locked-mode
+      - run: dotnet build ScmCollaboration.slnx --no-restore
+      - run: dotnet test ScmCollaboration.slnx --no-build --logger trx --results-directory artifacts/tests
+      - run: npm ci
+        working-directory: web
+      - run: npm run build
+        working-directory: web

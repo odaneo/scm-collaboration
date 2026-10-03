@@ -1,0 +1,10 @@
+**/bin/
+**/obj/
+**/node_modules/
+web/dist/
+.env
+.local/
+artifacts/
+*.user
+*.suo
+TestResults/

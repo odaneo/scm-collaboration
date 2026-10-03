@@ -1,0 +1,15 @@
+:root { font-family: system-ui, sans-serif; color: #1c2934; background: #f3f5f7; }
+body { margin: 0; }
+main { max-width: 1000px; margin: 24px auto; padding: 0 16px; }
+section { background: white; border: 1px solid #d5dce2; padding: 20px; margin: 20px 0; border-radius: 6px; }
+h1 { font-size: 26px; } h2 { font-size: 20px; margin-top: 0; }
+label { display: inline-flex; flex-direction: column; gap: 6px; margin: 8px 12px 8px 0; }
+input, select, button { font: inherit; padding: 7px 10px; }
+input, select { border: 1px solid #8593a0; border-radius: 3px; }
+button { margin: 6px; cursor: pointer; } button:disabled { cursor: default; opacity: .6; }
+fieldset { border: 0; padding: 0; } .line { display: flex; align-items: end; flex-wrap: wrap; }
+.table { overflow-x: auto; } table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+th, td { text-align: left; padding: 8px; border-bottom: 1px solid #d5dce2; }
+.error { background: #fff0ed; border: 1px solid #a53620; padding: 12px; color: #882814; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #236daa; outline-offset: 2px; }
+p { overflow-wrap: anywhere; }

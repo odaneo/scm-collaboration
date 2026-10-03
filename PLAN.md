@@ -1,7 +1,7 @@
 # SCM供应链协同系统：总计划
 
 日期：2026-10-03（Asia/Shanghai）  
-状态：设计草案，等待关键业务假设确认。SCM 业务代码尚未实现，构建与业务测试尚未执行。
+状态：1A 已实现并完成本地验证，等待用户验收；其余阶段及关键业务假设仍按本计划逐步确认。实际实现范围和结果见 [1A 验证记录](docs/VALIDATION-1A.md)。
 
 目标是通过服装品牌与合作工厂的真实协作用例，结对学习供应链业务、DDD、分层架构和微服务。按一个可验收用例推进，每轮解释规则、实现可运行流程、验证结果，再由你完成一项小练习。阶段不是一次性生成代码的指令，也不承诺未经测试的性能或业务收益。
 
@@ -26,7 +26,7 @@
 | Git | `2.47.1.windows.1` | 远端推送和 CI 执行；本轮未尝试 |
 | PostgreSQL / RabbitMQ | PATH 未找到 `psql`；没有运行中的容器；发现一个其他项目已停止的 pgvector 容器及镜像；没有 RabbitMQ 镜像 | 数据库、消息代理及真实事务测试；SCM 将使用独立容器和数据卷，保留现有容器 |
 
-沙箱内首次 Docker/WSL 查询遇到访问限制，随后经获准的只读环境查询确认服务端状态。没有安装依赖、拉取镜像、启动或修改容器、创建云资源。
+上表记录设计阶段的初始检查：沙箱内首次 Docker/WSL 查询遇到访问限制，随后经获准的只读环境查询确认服务端状态。初始检查没有安装依赖或启动容器；1A 实施已还原依赖、拉取固定镜像并启动独立 PostgreSQL，详见验证记录。没有创建云资源。
 
 ## 2. Articles 架构参考：沿用、调整、暂不采用
 
@@ -232,15 +232,15 @@ RabbitMQ 客户端自动重连不会替应用持久保存未发送消息，因�
 
 | 项目 | 2026-10-03 核实结果 / 建议 | SCM 实际验证状态 |
 | --- | --- | --- |
-| .NET / ASP.NET Core | .NET 10 为当前受支持 LTS，官方当前运行时补丁 `10.0.12`，支持期到 2028年11月；优先以本机 SDK `10.0.401` 为可复现候选。[支持政策](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core) | 已观察安装版本，未构建 SCM |
-| EF Core | 官方列 EF Core 10 为稳定版、目标 .NET 10；候选 EF 相关包统一 `10.0.12`。[版本计划](https://learn.microsoft.com/en-us/ef/core/what-is-new/)、[包元数据](https://www.nuget.org/packages/Microsoft.EntityFrameworkCore/10.0.12) | 未还原、迁移或执行事务测试 |
-| Npgsql EF Provider | 候选 `10.0.3`；包声明目标 net10.0、EF Core/Relational `>=10.0.4 && <11.0.0`、Npgsql `>=10.0.3`，与 EF `10.0.12` 的声明范围相容。[包元数据](https://www.nuget.org/packages/Npgsql.EntityFrameworkCore.PostgreSQL/10.0.3)、[发布说明](https://www.npgsql.org/efcore/release-notes/10.0.html) | 仅元数据相容，未完成实际组合验证 |
-| PostgreSQL | 官网当前受支持 18 分支补丁 `18.6`，作为本地候选；现有 pgvector 容器不作为 SCM 数据库。[版本政策](https://www.postgresql.org/support/versioning/) | 镜像标签/digest、迁移、锁/约束行为待核验 |
+| .NET / ASP.NET Core | .NET 10 为当前受支持 LTS，官方当前运行时补丁 `10.0.12`，支持期到 2028年11月；固定 SDK `10.0.401`。[支持政策](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core) | 1A 后端构建与测试通过 |
+| EF Core | EF 相关包统一 `10.0.12`，包括 Relational；工具也固定该版本。[版本计划](https://learn.microsoft.com/en-us/ef/core/what-is-new/)、[包元数据](https://www.nuget.org/packages/Microsoft.EntityFrameworkCore/10.0.12) | 已还原、生成/应用迁移，真实事务与约束测试通过 |
+| Npgsql EF Provider | 固定 `10.0.3`；声明 EF Core/Relational `>=10.0.4 && <11.0.0`，与 EF `10.0.12` 相容。[包元数据](https://www.nuget.org/packages/Npgsql.EntityFrameworkCore.PostgreSQL/10.0.3)、[发布说明](https://www.npgsql.org/efcore/release-notes/10.0.html) | 实际还原、构建与 PostgreSQL 组合测试通过 |
+| PostgreSQL | 固定 `18.6-bookworm` 及 digest，使用独立 SCM 容器；原 pgvector 项目保持不变。[版本政策](https://www.postgresql.org/support/versioning/) | 镜像拉取、迁移、数据库唯一约束/并发/回滚已验证 |
 | RabbitMQ | 官网列 `4.3.6` 为当前 4.3 补丁，作为候选；实施时复核社区支持窗口并安排升级。[发布与支持信息](https://www.rabbitmq.com/release-information) | 镜像与 .NET 客户端组合、消息恢复待验证 |
-| React / TypeScript | React 官网当前 `19.3`；采用 React + TypeScript + Vite + npm，具体 TS/Vite/插件版本在首次前端迭代按兼容工具链锁定。[React 版本](https://react.dev/versions) | 未安装或构建 |
-| Node | Node 22 与 24 均属 LTS 分支；本机 `22.20.0` 满足 Vite 文档 `22.12+` 的最低要求；实施时复核受支持补丁。[Node 发布](https://nodejs.org/en/about/previous-releases)、[Vite 要求](https://vite.dev/guide/) | 仅环境/文档检查，不表示前端构建通过 |
+| React / TypeScript | 固定 React `19.3.0`、TypeScript `7.0.2`、Vite `8.3.2`，通过 npm 元数据重新核实并生成锁文件。[React 版本](https://react.dev/versions) | 类型检查、构建及浏览器正常/异常流程通过 |
+| Node | 使用本机及 CI 固定的 `22.20.0`。[Node 发布](https://nodejs.org/en/about/previous-releases)、[Vite 要求](https://vite.dev/guide/) | 前端实际构建通过 |
 
-这些是当前版本候选，不是已配置的依赖清单。首次实现先用小规模可运行用例验证还原、编译、EF 设计工具、PostgreSQL 迁移、消息连接和前端构建，再报告通过/失败及原因。实施日期若改变，重新核实补丁版本；镜像存在性尚未核验，本轮没有拉取镜像。
+1A 的已配置版本以 global.json、Directory.Packages.props、工具清单、锁文件及 compose.yaml 为准，验证记录区分元数据和实际运行。RabbitMQ 及后续组件仍是候选，未进行消息连接或恢复测试；每个后续阶段开始时重新核实相关版本。
 
 复现要求随首个相关用例落地：`global.json` 固定 SDK 与明确 roll-forward 策略；一个根 `Directory.Packages.props` 固定包版本，必要时锁定传递依赖；工具清单固定 `dotnet-ef`；前端提交 `package-lock.json`、记录 Node/npm 版本，CI 使用 `npm ci`；Compose 镜像固定具体版本并记录 digest，不使用漂移的 `latest`。三个数据库独立迁移，本地迁移命令与演示数据可重复执行，不能清空用户现有数据库。
 
@@ -325,4 +325,4 @@ AWS 阶段再比较教学演示的 EC2/Compose 方案与 ECS、RDS PostgreSQL、
 | **D：发货与预占** | 工厂准备发货即预占，确认实际发出才计履约；取消准备释放；无自动超时；允许同单多批次/多明细发货；已发货首版不能撤销，收货不在范围内 | 是否接受两个独立行为及预占取消规则？ |
 | **E：ERP 数据口径** | 优先 API 接入；来源和工厂来自已验证凭证；报告编号/累计标记/序号/版本明确；不混报同一批次；旧累计不覆盖，新累计下降进入人工处理；无批次时使用显式派生映射 | 是否接受首版累计转换与异常处理方式，而将数量更正和混合来源协调留到后续？ |
 
-确认后，下一轮只推进 **1A：创建并查看采购订单草稿**，先解释订单为何是聚合，再共同完成一个可以运行和测试的业务用例。
+现在先验收 **1A：创建并查看采购订单草稿**。下一阶段 1B 开始前确认提交规则；上述质量、发运和 ERP 假设仍未用于 1A 实现。

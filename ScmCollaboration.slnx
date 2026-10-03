@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/Procurement/">
+    <Project Path="src/Procurement.Domain/Procurement.Domain.csproj" />
+    <Project Path="src/Procurement.Application/Procurement.Application.csproj" />
+    <Project Path="src/Procurement.Persistence/Procurement.Persistence.csproj" />
+    <Project Path="src/Procurement.Api/Procurement.Api.csproj" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="tests/Procurement.Tests/Procurement.Tests.csproj" />
+  </Folder>
+</Solution>
