@@ -11,7 +11,8 @@ using Procurement.Application;
 
 namespace Procurement.Tests;
 
-public sealed class IntegrationTests(ApiFixture f) : IClassFixture<ApiFixture>
+[Collection("PostgreSQL")]
+public sealed class IntegrationTests(ApiFixture f)
 {
     private async Task<CreatedOrder> Create(string? key = null)
     {

@@ -1,4 +1,4 @@
-name: 1A build and test
+name: Procurement build and test
 on: [push, pull_request]
 jobs:
   verify:

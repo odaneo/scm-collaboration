@@ -31,4 +31,36 @@ public sealed class OrdersController(ProcurementService service) : ControllerBas
         var order = await service.Detail(CurrentActor, id, ct);
         return order is null ? NotFound() : Ok(order);
     }
+    [HttpPut("purchase-orders/{id:guid}/draft")]
+    public async Task<IActionResult> UpdateDraft(Guid id, UpdateDraftRequest request, CancellationToken ct) =>
+        Ok(await service.UpdateDraft(CurrentActor, id, request, Key, ct));
+    [HttpPost("purchase-orders/{id:guid}/submissions")]
+    public async Task<IActionResult> Submit(Guid id, RevisionRequest request, CancellationToken ct) =>
+        Ok(await service.Submit(CurrentActor, id, request, Key, ct));
+    [HttpPost("purchase-orders/{id:guid}/versions/{version:int}/withdraw")]
+    public async Task<IActionResult> Withdraw(Guid id, int version, ReasonRequest request, CancellationToken ct) =>
+        Ok(await service.Withdraw(CurrentActor, id, version, request, Key, ct));
+    [HttpPost("purchase-orders/{id:guid}/versions/{version:int}/accept")]
+    public async Task<IActionResult> Accept(Guid id, int version, RevisionRequest request, CancellationToken ct) =>
+        Ok(await service.Accept(CurrentActor, id, version, request, Key, ct));
+    [HttpPost("purchase-orders/{id:guid}/versions/{version:int}/reject")]
+    public async Task<IActionResult> Reject(Guid id, int version, ReasonRequest request, CancellationToken ct) =>
+        Ok(await service.Reject(CurrentActor, id, version, request, Key, ct));
+    [HttpGet("purchase-orders/{id:guid}/versions")]
+    public async Task<IActionResult> Versions(Guid id, CancellationToken ct, int page = 1, int pageSize = 20) =>
+        Ok(await service.Versions(CurrentActor, id, page, pageSize, ct));
+    [HttpGet("purchase-orders/{id:guid}/versions/{version:int}")]
+    public async Task<IActionResult> Version(Guid id, int version, CancellationToken ct) =>
+        VersionResponse(await service.Version(CurrentActor, id, version, false, ct));
+    [HttpGet("factory/order-versions")]
+    public async Task<IActionResult> FactoryVersions(CancellationToken ct, string? status = null, int page = 1, int pageSize = 20) =>
+        Ok(await service.FactoryVersions(CurrentActor, status, page, pageSize, ct));
+    [HttpGet("factory/orders/{id:guid}/versions/{version:int}")]
+    public async Task<IActionResult> FactoryVersion(Guid id, int version, CancellationToken ct) =>
+        VersionResponse(await service.Version(CurrentActor, id, version, true, ct));
+    [HttpGet("purchase-orders/{id:guid}/audit")]
+    public async Task<IActionResult> Audit(Guid id, CancellationToken ct, int page = 1, int pageSize = 20) =>
+        Ok(await service.Audit(CurrentActor, id, page, pageSize, ct));
+    private string Key => Request.Headers["Idempotency-Key"].ToString();
+    private IActionResult VersionResponse(VersionDetail? version) => version is null ? NotFound() : Ok(version);
 }

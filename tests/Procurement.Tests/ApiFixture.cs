@@ -11,6 +11,7 @@ using Npgsql;
 using Procurement.Api;
 using Procurement.Application;
 using Procurement.Persistence;
+using Procurement.Domain;
 
 namespace Procurement.Tests;
 
@@ -24,7 +25,30 @@ public sealed class FailAfterSave : SaveChangesInterceptor
     }
 }
 
-public sealed class ApiFactory(string connection, string key, FailAfterSave failure, string environment = "Development") : WebApplicationFactory<Program>
+public sealed class ConcurrentSaveBarrier : SaveChangesInterceptor
+{
+    private Guid orderId;
+    private int remaining;
+    private TaskCompletionSource ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public void Arm(Guid id)
+    {
+        orderId = id; remaining = 2;
+        ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+    public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData data,
+        InterceptionResult<int> result, CancellationToken ct = default)
+    {
+        if (data.Context!.ChangeTracker.Entries<PurchaseOrder>().Any(x => x.Entity.Id == orderId && x.State == EntityState.Modified))
+        {
+            if (Interlocked.Decrement(ref remaining) == 0) ready.TrySetResult();
+            await ready.Task.WaitAsync(TimeSpan.FromSeconds(15), ct);
+        }
+        return result;
+    }
+}
+
+public sealed class ApiFactory(string connection, string key, FailAfterSave failure, string environment = "Development",
+    ConcurrentSaveBarrier? barrier = null) : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -32,7 +56,10 @@ public sealed class ApiFactory(string connection, string key, FailAfterSave fail
         builder.UseSetting("ConnectionStrings:Procurement", connection);
         builder.UseSetting("Auth:SigningKey", key);
         builder.ConfigureServices(services => services.AddDbContext<ProcurementDbContext>(options =>
-            options.AddInterceptors(failure)));
+        {
+            options.AddInterceptors(failure);
+            if (barrier is not null) options.AddInterceptors(barrier);
+        }));
     }
 }
 
@@ -42,6 +69,7 @@ public sealed class ApiFixture : IAsyncLifetime
     public string Key { get; } = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
     private string Password { get; } = Convert.ToBase64String(RandomNumberGenerator.GetBytes(24));
     public FailAfterSave Failure { get; } = new();
+    public ConcurrentSaveBarrier Barrier { get; } = new();
     public ApiFactory Factory { get; private set; } = null!;
     public HttpClient Client { get; private set; } = null!;
     public Dictionary<string, string> Tokens { get; } = [];
@@ -59,7 +87,7 @@ public sealed class ApiFixture : IAsyncLifetime
             await db.Database.MigrateAsync();
             await DemoSeed.Run(db, new PasswordHasher<DemoUser>(), Password);
         }
-        Factory = new(Connection, Key, Failure);
+        Factory = new(Connection, Key, Failure, barrier: Barrier);
         Client = Factory.CreateClient(new() { AllowAutoRedirect = false });
         foreach (var username in new[] { "buyer", "quality", "factory-a", "factory-b" })
         {
@@ -95,3 +123,6 @@ public sealed class ApiFixture : IAsyncLifetime
         return Task.CompletedTask;
     }
 }
+
+[CollectionDefinition("PostgreSQL", DisableParallelization = true)]
+public sealed class PostgreSqlCollection : ICollectionFixture<ApiFixture>;

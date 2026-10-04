@@ -11,12 +11,14 @@ public sealed class ApiExceptionHandler(IProblemDetailsService problems, ILogger
         var status = exception switch
         {
             DomainRuleViolation => 400,
+            DomainConflict => 409,
             UseCaseFailure { Kind: FailureKind.InvalidInput } => 400,
             UseCaseFailure { Kind: FailureKind.Forbidden } => 403,
+            UseCaseFailure { Kind: FailureKind.NotFound } => 404,
             UseCaseFailure { Kind: FailureKind.Conflict } => 409,
             _ => 500
         };
-        if (status == 500) logger.LogError(exception, "请求处理失败，事务不会保存部分业务结果。");
+        if (status == 500) logger.LogError(exception, "请求处理失败，请使用原幂等键确认处理结果。");
         context.Response.StatusCode = status;
         await problems.WriteAsync(new()
         {

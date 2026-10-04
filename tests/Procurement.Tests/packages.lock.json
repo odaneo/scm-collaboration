@@ -508,6 +508,7 @@
         "dependencies": {
           "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.0.12, )",
           "Microsoft.AspNetCore.OpenApi": "[10.0.12, )",
+          "Procurement.Application": "[1.0.0, )",
           "Procurement.Persistence": "[1.0.0, )"
         }
       },

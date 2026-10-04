@@ -13,3 +13,4 @@ th, td { text-align: left; padding: 8px; border-bottom: 1px solid #d5dce2; }
 .error { background: #fff0ed; border: 1px solid #a53620; padding: 12px; color: #882814; }
 button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #236daa; outline-offset: 2px; }
 p { overflow-wrap: anywhere; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }

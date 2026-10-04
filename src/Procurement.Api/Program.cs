@@ -32,7 +32,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
             var subject = context.Principal?.FindFirst("sub")?.Value;
             var role = context.Principal?.FindFirst("role")?.Value;
             if (string.IsNullOrWhiteSpace(subject) || role is not (Roles.Buyer or Roles.Quality or Roles.Factory) ||
-                (role == Roles.Factory && !Guid.TryParse(context.Principal?.FindFirst("factory_id")?.Value, out _)))
+                (role == Roles.Factory && (!Guid.TryParse(context.Principal?.FindFirst("factory_id")?.Value, out var factoryId) || factoryId == Guid.Empty)))
                 context.Fail("身份声明不完整。");
             return Task.CompletedTask;
         }
@@ -53,7 +53,7 @@ builder.Services.AddControllers().ConfigureApiBehaviorOptions(options =>
         Status = 400, Title = "请检查输入格式",
         Detail = context.ActionDescriptor.RouteValues["controller"] == "DemoAuth"
             ? "请输入完整的账号和密码。"
-            : "请检查工厂、商品及 YYYY-MM-DD 格式的交期；数量必须是 1–2147483647 的整数。",
+            : "请检查请求字段：工厂、商品、YYYY-MM-DD 交期、整数件数及 ExpectedRevision；拒绝或撤回需要原因。",
         Extensions = { ["traceId"] = Activity.Current?.TraceId.ToString() ?? context.HttpContext.TraceIdentifier }
     });
 });

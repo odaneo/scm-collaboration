@@ -1,5 +1,7 @@
 # 1A API 契约
 
+此文保留 1A 的基础契约；当前已增加提交与工厂决定能力，见 [1B 契约](API-1B.md)。
+
 业务接口统一使用 ASP.NET Core Controller。运行时契约：`GET /openapi/v1.json`（Development）。数据库和 HTTP 测试见验证记录。
 
 | 方法及路径 | 权限 / 返回 |
