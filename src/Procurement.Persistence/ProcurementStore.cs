@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Procurement.Application;
 using Procurement.Domain;
+using Scm.IntegrationContracts;
+using Scm.Messaging;
 
 namespace Procurement.Persistence;
 
@@ -95,7 +97,7 @@ public sealed class ProcurementStore(ProcurementDbContext db) : IProcurementStor
         {
             var query = db.Versions.Where(x => x.OrderId == change.OrderId && x.Version == number);
             if (change.Actor.Role == Roles.Factory) query = query.Where(x => x.FactoryId == change.Actor.FactoryId);
-            version = await query.SingleOrDefaultAsync(ct) ?? throw MissingOrder();
+            version = await query.Include(x => x.Lines).SingleOrDefaultAsync(ct) ?? throw MissingOrder();
         }
         // 先验证目标可见性，再重放；重放不能被后来的修订号或目录停用打断。
         if (claimed == 0) return ReadResult<OrderOperationResult>(record, change.Hash);
@@ -109,6 +111,12 @@ public sealed class ProcurementStore(ProcurementDbContext db) : IProcurementStor
             version = submitted;
         }
         var result = new OrderOperationResult(order.Id, version?.Version, order.Status, order.Revision, version?.Status, version?.DecisionId);
+        if (mutation.AcceptedEvent is { } accepted)
+        {
+            var payload = accepted.Read<PurchaseOrderAcceptedV1>();
+            db.Set<OutboxMessage>().Add(OutboxMessage.From(accepted, payload.ContentHash()));
+            db.Set<ProductionTaskLink>().Add(ProductionTaskLink.Pending(payload, change.OccurredAt));
+        }
         if (order.Revision != beforeRevision)
             db.Audit.Add(new(Guid.NewGuid(), order.Id, change.Operation, change.Actor.SubjectId, order.FactoryId,
                 version?.ResolvedAt ?? version?.SubmittedAt ?? change.OccurredAt, order.Revision, version?.Version,
@@ -167,6 +175,23 @@ public sealed class ProcurementStore(ProcurementDbContext db) : IProcurementStor
             .Select(x => new AuditDetail(x.Id, x.Action, x.SubjectId, x.OccurredAt, x.ResultRevision, x.OrderVersion, x.Reason, x.Changes))
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
         return new(items, total, page, pageSize);
+    }
+    public async Task<ProductionTaskStatus?> GetProductionTaskStatus(Actor actor, Guid id, int? version, CancellationToken ct)
+    {
+        var order = await db.Orders.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (order is null) return null;
+        if (actor.Role == Roles.Factory)
+        {
+            var visible = await db.Versions.AsNoTracking().AnyAsync(x => x.OrderId == id && x.Version == version && x.FactoryId == actor.FactoryId, ct);
+            if (!visible) return null;
+            if (version != order.AcceptedOrderVersion) return new(id, version, "NotApplicable", null, null, 0, null);
+        }
+        if (order.AcceptedOrderVersion is null) return new(id, null, "NotApplicable", null, null, 0, null);
+        var link = await db.Set<ProductionTaskLink>().AsNoTracking().SingleOrDefaultAsync(x => x.OrderId == id, ct);
+        if (link is null) return new(id, order.AcceptedOrderVersion, "NotScheduled", null, null, 0, null);
+        var outgoing = await db.Set<OutboxMessage>().AsNoTracking().SingleAsync(x => x.FactId == link.DecisionId && x.EventType == nameof(PurchaseOrderAcceptedV1), ct);
+        return new(id, link.AcceptedOrderVersion, link.Status, link.TaskId, link.UpdatedAt, outgoing.Attempts,
+            link.ErrorCode ?? (outgoing.LastError is null ? null : "DeliveryDelayed"));
     }
     private static UseCaseFailure MissingOrder() => new(FailureKind.NotFound, "订单或提交版本不存在或不可见。");
 }

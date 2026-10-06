@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Procurement.Domain;
+using Scm.Messaging;
 
 namespace Procurement.Persistence;
 
@@ -30,6 +31,15 @@ public sealed class ProcurementDbContext(DbContextOptions<ProcurementDbContext> 
 
     protected override void OnModelCreating(ModelBuilder model)
     {
+        model.MapMessages();
+        model.Entity<ProductionTaskLink>(e =>
+        {
+            e.ToTable("production_task_links", t => t.HasCheckConstraint("ck_task_link_status", "\"Status\" IN ('Pending','Created','Blocked')"));
+            e.HasKey(x => x.OrderId); e.Property(x => x.OrderId).ValueGeneratedNever();
+            e.Property(x => x.Status).HasMaxLength(20); e.Property(x => x.AcceptedContentHash).HasMaxLength(64);
+            e.Property(x => x.ErrorCode).HasMaxLength(100); e.HasIndex(x => x.DecisionId).IsUnique();
+            e.HasOne<PurchaseOrder>().WithOne().HasForeignKey<ProductionTaskLink>(x => x.OrderId).OnDelete(DeleteBehavior.Restrict);
+        });
         model.Entity<Factory>(e =>
         {
             e.ToTable("factories"); e.HasKey(x => x.Id); e.Property(x => x.Name).HasMaxLength(200);

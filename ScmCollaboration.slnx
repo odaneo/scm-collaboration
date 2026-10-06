@@ -8,4 +8,14 @@
   <Folder Name="/Tests/">
     <Project Path="tests/Procurement.Tests/Procurement.Tests.csproj" />
   </Folder>
+  <Folder Name="/Production/">
+    <Project Path="src/Production.Domain/Production.Domain.csproj" />
+    <Project Path="src/Production.Application/Production.Application.csproj" />
+    <Project Path="src/Production.Persistence/Production.Persistence.csproj" />
+    <Project Path="src/Production.Api/Production.Api.csproj" />
+  </Folder>
+  <Folder Name="/Shared/">
+    <Project Path="src/Scm.IntegrationContracts/Scm.IntegrationContracts.csproj" />
+    <Project Path="src/Scm.Messaging/Scm.Messaging.csproj" />
+  </Folder>
 </Solution>

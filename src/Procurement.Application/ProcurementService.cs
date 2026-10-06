@@ -97,8 +97,8 @@ public sealed class ProcurementService(IProcurementStore store, TimeProvider clo
         var factoryId = RequireFactory(actor);
         return Change(actor, id, version, request.ExpectedRevision, "AcceptVersion", request, key, (order, submitted, _) =>
         {
-            order.AcceptVersion(submitted!, factoryId, actor.SubjectId, clock.GetUtcNow());
-            return Task.FromResult(new OrderMutation());
+            var fact = order.AcceptVersion(submitted!, factoryId, actor.SubjectId, clock.GetUtcNow());
+            return Task.FromResult(new OrderMutation(AcceptedEvent: AcceptedOrderEvents.From(fact, submitted!)));
         }, ct);
     }
     public Task<OrderOperationResult> Reject(Actor actor, Guid id, int version, ReasonRequest request, string? key, CancellationToken ct)
@@ -138,6 +138,11 @@ public sealed class ProcurementService(IProcurementStore store, TimeProvider clo
     }
     public static DateOnly ShanghaiDate(DateTimeOffset at) => DateOnly.FromDateTime(
         TimeZoneInfo.ConvertTime(at, TimeZoneInfo.FindSystemTimeZoneById("Asia/Shanghai")).DateTime);
+    public Task<ProductionTaskStatus?> ProductionTask(Actor actor, Guid id, int? version, CancellationToken ct)
+    {
+        if (actor.Role == Roles.Factory) RequireFactory(actor); else RequireBuyer(actor);
+        return store.GetProductionTaskStatus(actor, id, version, ct);
+    }
 
     private Task<OrderOperationResult> Change(Actor actor, Guid id, int? version, int revision, string operation,
         object payload, string? key, Func<PurchaseOrder, SubmittedOrderVersion?, CancellationToken, Task<OrderMutation>> apply, CancellationToken ct)

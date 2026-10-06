@@ -1,4 +1,5 @@
 using Procurement.Domain;
+using Scm.IntegrationContracts;
 
 namespace Procurement.Application;
 
@@ -44,7 +45,10 @@ public sealed record AuditDetail(Guid Id, string Action, string SubjectId, DateT
 public sealed record AuditPage(IReadOnlyList<AuditDetail> Items, int Total, int Page, int PageSize);
 public sealed record OrderChange(Actor Actor, Guid OrderId, int? Version, int ExpectedRevision,
     string Operation, string Key, string Hash, DateTimeOffset OccurredAt);
-public sealed record OrderMutation(SubmittedOrderVersion? NewVersion = null, string? Reason = null, string? Changes = null);
+public sealed record OrderMutation(SubmittedOrderVersion? NewVersion = null, string? Reason = null, string? Changes = null,
+    MessageEnvelope? AcceptedEvent = null);
+public sealed record ProductionTaskStatus(Guid OrderId, int? AcceptedOrderVersion, string Status, Guid? TaskId,
+    DateTimeOffset? UpdatedAt, int Attempts, string? ErrorCode);
 
 // 这是当前用例的持久化端口，不是通用 CRUD 仓储。
 public interface IProcurementStore
@@ -60,4 +64,5 @@ public interface IProcurementStore
     Task<VersionPage> GetVersions(Guid? factoryId, Guid? orderId, string? status, int page, int pageSize, CancellationToken ct);
     Task<VersionDetail?> GetVersion(Guid? factoryId, Guid orderId, int version, CancellationToken ct);
     Task<AuditPage> GetAudit(Guid id, int page, int pageSize, CancellationToken ct);
+    Task<ProductionTaskStatus?> GetProductionTaskStatus(Actor actor, Guid id, int? version, CancellationToken ct);
 }

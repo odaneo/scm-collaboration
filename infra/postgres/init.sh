@@ -5,3 +5,4 @@ CREATE ROLE scm_procurement LOGIN PASSWORD :'app_password';
 CREATE DATABASE scm_procurement OWNER scm_procurement;
 CREATE DATABASE scm_procurement_test OWNER scm_procurement;
 SQL
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres -v production_password="$PRODUCTION_PASSWORD" -f /opt/scm/upgrade-1c.sql

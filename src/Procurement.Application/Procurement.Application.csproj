@@ -1,3 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup><ProjectReference Include="../Procurement.Domain/Procurement.Domain.csproj" /></ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Procurement.Domain/Procurement.Domain.csproj" />
+    <ProjectReference Include="../Scm.IntegrationContracts/Scm.IntegrationContracts.csproj" />
+  </ItemGroup>
 </Project>

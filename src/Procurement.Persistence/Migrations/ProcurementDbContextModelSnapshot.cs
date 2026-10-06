@@ -331,6 +331,51 @@ namespace Procurement.Persistence.Migrations
                     b.ToTable("http_request_results", (string)null);
                 });
 
+            modelBuilder.Entity("Procurement.Persistence.ProductionTaskLink", b =>
+                {
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AcceptedContentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("AcceptedOrderVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("DecisionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("FactoryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid?>("TaskId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("OrderId");
+
+                    b.HasIndex("DecisionId")
+                        .IsUnique();
+
+                    b.ToTable("production_task_links", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_task_link_status", "\"Status\" IN ('Pending','Created','Blocked')");
+                        });
+                });
+
             modelBuilder.Entity("Procurement.Persistence.Sku", b =>
                 {
                     b.Property<Guid>("Id")
@@ -361,6 +406,138 @@ namespace Procurement.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("skus", (string)null);
+                });
+
+            modelBuilder.Entity("Scm.Messaging.InboxMessage", b =>
+                {
+                    b.Property<string>("ConsumerName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("EnvelopeJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Hash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("ConsumerName", "MessageId");
+
+                    b.HasIndex("Status", "NextAttemptAt");
+
+                    b.ToTable("inbox_messages", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_inbox_status", "\"Status\" IN ('Pending','Processed','Blocked')");
+                        });
+                });
+
+            modelBuilder.Entity("Scm.Messaging.MessageFailure", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ConsumerName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("EnvelopeJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ErrorCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Hash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConsumerName", "MessageId", "Hash")
+                        .IsUnique();
+
+                    b.ToTable("message_failures", (string)null);
+                });
+
+            modelBuilder.Entity("Scm.Messaging.OutboxMessage", b =>
+                {
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ContentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset>("EnqueuedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EnvelopeJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("FactId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("SentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("MessageId");
+
+                    b.HasIndex("EventType", "FactId")
+                        .IsUnique();
+
+                    b.HasIndex("SentAt", "NextAttemptAt");
+
+                    b.ToTable("outbox_messages", (string)null);
                 });
 
             modelBuilder.Entity("Procurement.Domain.PurchaseOrder", b =>
@@ -500,6 +677,15 @@ namespace Procurement.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("FactoryId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Procurement.Persistence.ProductionTaskLink", b =>
+                {
+                    b.HasOne("Procurement.Domain.PurchaseOrder", null)
+                        .WithOne()
+                        .HasForeignKey("Procurement.Persistence.ProductionTaskLink", "OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Procurement.Domain.PurchaseOrder", b =>

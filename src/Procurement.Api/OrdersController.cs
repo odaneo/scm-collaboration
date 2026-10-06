@@ -62,5 +62,17 @@ public sealed class OrdersController(ProcurementService service) : ControllerBas
     public async Task<IActionResult> Audit(Guid id, CancellationToken ct, int page = 1, int pageSize = 20) =>
         Ok(await service.Audit(CurrentActor, id, page, pageSize, ct));
     private string Key => Request.Headers["Idempotency-Key"].ToString();
+    [HttpGet("purchase-orders/{id:guid}/production-task")]
+    public async Task<IActionResult> ProductionTask(Guid id, CancellationToken ct)
+    {
+        if (CurrentActor.Role != Roles.Buyer) return Forbid();
+        var result = await service.ProductionTask(CurrentActor, id, null, ct); return result is null ? NotFound() : Ok(result);
+    }
+    [HttpGet("factory/orders/{id:guid}/versions/{version:int}/production-task")]
+    public async Task<IActionResult> FactoryProductionTask(Guid id, int version, CancellationToken ct)
+    {
+        if (CurrentActor.Role != Roles.Factory) return Forbid();
+        var result = await service.ProductionTask(CurrentActor, id, version, ct); return result is null ? NotFound() : Ok(result);
+    }
     private IActionResult VersionResponse(VersionDetail? version) => version is null ? NotFound() : Ok(version);
 }

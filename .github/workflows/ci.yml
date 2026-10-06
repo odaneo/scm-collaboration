@@ -1,4 +1,4 @@
-name: Procurement build and test
+name: SCM build and collaboration test
 on: [push, pull_request]
 jobs:
   verify:
@@ -7,13 +7,26 @@ jobs:
       postgres:
         image: postgres:18.6-bookworm@sha256:3725f4e2499eef5134592b3b4ab79a543ed7f8e533b05b5b637af926630f6650
         env:
-          POSTGRES_USER: scm_test
+          POSTGRES_USER: scm_admin
           POSTGRES_PASSWORD: ci-ephemeral-only
-          POSTGRES_DB: scm_procurement_test
+          POSTGRES_DB: scm_admin
         ports: ["5432:5432"]
-        options: --health-cmd "pg_isready -U scm_test -d scm_procurement_test" --health-interval 3s --health-timeout 3s --health-retries 20
+        options: --health-cmd "pg_isready -U scm_admin -d scm_admin" --health-interval 3s --health-timeout 3s --health-retries 20
+      rabbitmq:
+        image: rabbitmq:4.3.6-management@sha256:316ffd2a847e59112eee2c65f04bbd0989d93aaf1486c07b721f8d22d863b968
+        env:
+          RABBITMQ_DEFAULT_USER: scm_mq_admin
+          RABBITMQ_DEFAULT_PASS: ci-ephemeral-mq-admin
+        ports: ["5672:5672", "15672:15672"]
+        options: --health-cmd "rabbitmq-diagnostics -q ping" --health-interval 3s --health-timeout 5s --health-retries 30
     env:
-      SCM_TEST_CONNECTION: Host=localhost;Port=5432;Database=scm_procurement_test;Username=scm_test;Password=ci-ephemeral-only
+      SCM_TEST_CONNECTION: Host=localhost;Port=5432;Database=scm_procurement_test;Username=scm_procurement;Password=ci-ephemeral-procurement;GSS Encryption Mode=Disable
+      SCM_PRODUCTION_TEST_CONNECTION: Host=localhost;Port=5432;Database=scm_production_test;Username=scm_production;Password=ci-ephemeral-production;GSS Encryption Mode=Disable
+      SCM_TEST_MQ_PORT: 5672
+      SCM_TEST_MQ_ADMIN_URL: http://127.0.0.1:15672/api/
+      SCM_TEST_MQ_ADMIN_PASSWORD: ci-ephemeral-mq-admin
+      SCM_TEST_MQ_PROCUREMENT_PASSWORD: ci-ephemeral-mq-procurement
+      SCM_TEST_MQ_PRODUCTION_PASSWORD: ci-ephemeral-mq-production
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
@@ -25,6 +38,14 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: dotnet restore ScmCollaboration.slnx --locked-mode
+      - name: Create isolated service databases
+        run: |
+          docker exec -i ${{ job.services.postgres.id }} psql -v ON_ERROR_STOP=1 -U scm_admin -d postgres <<'SQL'
+          CREATE ROLE scm_procurement LOGIN PASSWORD 'ci-ephemeral-procurement';
+          CREATE DATABASE scm_procurement OWNER scm_procurement;
+          CREATE DATABASE scm_procurement_test OWNER scm_procurement;
+          SQL
+          docker exec -i ${{ job.services.postgres.id }} psql -v ON_ERROR_STOP=1 -U scm_admin -d postgres -v production_password=ci-ephemeral-production < infra/postgres/upgrade-1c.sql
       - run: dotnet build ScmCollaboration.slnx --no-restore
       - run: dotnet test ScmCollaboration.slnx --no-build --logger trx --results-directory artifacts/tests
       - run: npm ci

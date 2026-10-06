@@ -14,7 +14,7 @@ type Audit = { id: string; action: string; subjectId: string; occurredAt: string
 type Page<T> = { items: T[]; total: number; page: number; pageSize: number };
 type Attempt = { key: string; path: string; method: 'POST' | 'PUT'; payload: unknown; label: string; username: string; orderId?: string; version?: number };
 const names: Record<string, string> = { Draft: '草稿', Submitted: '待工厂确认', Accepted: '已接受', Rejected: '已拒绝', Pending: '待确认', Withdrawn: '已撤回',
-  DraftCreated: '创建草稿', UpdateDraft: '编辑草稿', SubmitOrder: '提交版本', WithdrawSubmission: '撤回提交', AcceptVersion: '接受版本', RejectVersion: '拒绝版本' };
+  DraftCreated: '创建草稿', UpdateDraft: '编辑草稿', SubmitOrder: '提交版本', WithdrawSubmission: '撤回提交', AcceptVersion: '接受版本', RejectVersion: '拒绝版本', ProductionTaskBackfilled: '补建生产任务' };
 class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) { super(message); this.status = status; }
@@ -35,6 +35,41 @@ function Lines({ lines }: { lines: OrderLine[] }) {
   return <><div className="table"><table><thead><tr><th>款式</th><th>颜色</th><th>尺码</th><th>件数</th></tr></thead><tbody>
     {lines.map(line => <tr key={line.id}><td>{line.style}</td><td>{line.color}</td><td>{line.size}</td><td>{line.quantity}</td></tr>)}
   </tbody></table></div><p>总计 {lines.reduce((sum, line) => sum + line.quantity, 0)} 件</p></>;
+}
+
+function ProductionTaskView({ orderId, version, session }: { orderId: string; version?: number; session: Session }) {
+  type Coordination = { status: string; taskId: string | null; updatedAt: string | null; attempts: number; errorCode: string | null };
+  type Task = { id: string; deliveryDate: string; lines: { lineId: string; skuId: string; style: string; color: string; size: string; confirmedQuantity: number }[] };
+  const [status, setStatus] = useState<Coordination | null>(null); const [task, setTask] = useState<Task | null>(null);
+  const [error, setError] = useState(''); const [refresh, setRefresh] = useState(0); const [waiting, setWaiting] = useState(false);
+  useEffect(() => {
+    let cancelled = false; let timer: ReturnType<typeof setTimeout>; const deadline = Date.now() + 60000;
+    setStatus(null); setTask(null); setError(''); setWaiting(false);
+    const path = session.role === 'Factory' ? `/api/factory/orders/${orderId}/versions/${version}/production-task` : `/api/purchase-orders/${orderId}/production-task`;
+    async function load() {
+      try {
+        const result = await api<Coordination>(path, session.token); if (cancelled) return; setStatus(result);
+        if (result.status === 'Created' && result.taskId) {
+          try { const detail = await api<Task>(`/api/production-tasks/${result.taskId}`, session.token); if (!cancelled) setTask(detail); }
+          catch { if (!cancelled) setError('任务已建立；生产明细查询暂不可用，请稍后刷新。'); }
+        } else if (result.status === 'Pending') {
+          if (Date.now() < deadline) timer = setTimeout(load, 2000); else setWaiting(true);
+        }
+      } catch (cause) { if (!cancelled) setError(cause instanceof Error ? cause.message : '任务状态查询失败。'); }
+    }
+    void load(); return () => { cancelled = true; clearTimeout(timer); };
+  }, [orderId, version, session.token, session.role, refresh]);
+  const labels: Record<string, string> = { NotApplicable: '尚未接单', NotScheduled: '历史订单尚未补建任务', Pending: '生产任务建立中',
+    Blocked: '任务建立受阻，需要处理', Created: '生产任务已建立' };
+  return <div><h3>生产任务</h3><p>{status ? labels[status.status] : '查询中…'}
+    {status?.errorCode === 'DeliveryDelayed' && ' · 消息发送暂时失败，等待恢复'}
+    {status?.status === 'Blocked' && ` · ${status.errorCode}`} {waiting && ' · 仍在等待回执，可手动刷新'}</p>
+    {status?.updatedAt && <p>状态更新时间：{new Date(status.updatedAt).toLocaleString()}</p>}
+    {status?.taskId && <p>任务编号：{status.taskId}</p>}{error && <p role="alert">{error}</p>}
+    <button onClick={() => setRefresh(value => value + 1)}>刷新任务状态</button>
+    {task && <><p>确认交期：{task.deliveryDate}；以下是确认订购量，完成量上报将在 1D 实现。</p>
+      <Lines lines={task.lines.map(x => ({ id: x.lineId, skuId: x.skuId, style: x.style, color: x.color, size: x.size, quantity: x.confirmedQuantity }))} /></>}
+  </div>;
 }
 
 export function App() {
@@ -150,7 +185,7 @@ export function App() {
   }
   const list = session?.role === 'Buyer' ? orders : factoryVersions;
   return <main>
-    <h1>SCM供应链协同系统</h1><p>1B · 采购提交版本与工厂决定</p>
+    <h1>SCM供应链协同系统</h1><p>1C · 工厂接单与自动建立生产任务</p>
     {error && <p role="alert" className="error">{error}</p>}{notice && <p role="status">{notice}</p>}
     {pending && <section><p>“{pending.label}”结果尚未确认，已保留原内容、修订号与幂等键。请先重试确认，刷新页面会丢失内存中的请求。</p>
       <p>原账号：{pending.username} · 幂等键：{pending.key}</p>
@@ -195,7 +230,8 @@ export function App() {
           {detail.status === 'Submitted' && <><label>撤回原因<input maxLength={500} value={reason} onChange={e => setReason(e.target.value)} disabled={locked} /></label>
             <button disabled={locked || !reason.trim()} onClick={() => write(`/api/purchase-orders/${detail.id}/versions/${detail.lastSubmittedVersion}/withdraw`,
               { expectedRevision: detail.revision, reason }, '撤回提交', detail.id, detail.lastSubmittedVersion)}>撤回待确认版本</button></>}
-          {detail.status === 'Accepted' && <p>已接单；生产流程尚未实现。工厂、商品、数量和交期不能直接修改。</p>}
+          {detail.status === 'Accepted' && <><p>已接单；工厂、商品、数量和交期不能直接修改。</p>
+            <ProductionTaskView orderId={detail.id} session={session} /></>}
           <h3>提交历史</h3>{history?.items.map(version => <p key={version.version}>V{version.version} · {version.factoryName} · {names[version.status]}
             <button disabled={locked} onClick={() => inspect(() => loadVersion(detail.id, version.version))}>查看 V{version.version} 快照</button></p>)}
           {!!history?.total && <p>历史第 {history.page} 页 / 共 {history.total} 个版本
@@ -227,7 +263,7 @@ export function App() {
           <label>拒绝原因<input maxLength={500} value={reason} disabled={locked} onChange={e => setReason(e.target.value)} /></label>
           <button disabled={locked || !reason.trim()} onClick={() => write(`/api/purchase-orders/${selected.orderId}/versions/${selected.version}/reject`,
             { expectedRevision: selected.expectedRevision, reason }, '拒绝版本', selected.orderId, selected.version)}>拒绝 V{selected.version}</button>
-        </>}{selected.status === 'Accepted' && <p>已接单；生产流程尚未实现。</p>}
+        </>}{selected.status === 'Accepted' && <ProductionTaskView orderId={selected.orderId} version={selected.version} session={session} />}
       </section>}
     </>}
   </main>;

@@ -463,6 +463,11 @@
           "Microsoft.IdentityModel.Tokens": "8.19.2"
         }
       },
+      "System.Threading.RateLimiting": {
+        "type": "Transitive",
+        "resolved": "8.0.0",
+        "contentHash": "7mu9v0QDv66ar3DpGSZHg9NuNcxDaaAcnMULuZlaTpP9+hwXhrxNGsF5GmLkSHxFdb5bBc1TzeujsRgTrPWi+Q=="
+      },
       "xunit.abstractions": {
         "type": "Transitive",
         "resolved": "2.0.3",
@@ -515,7 +520,8 @@
       "procurement.application": {
         "type": "Project",
         "dependencies": {
-          "Procurement.Domain": "[1.0.0, )"
+          "Procurement.Domain": "[1.0.0, )",
+          "Scm.IntegrationContracts": "[1.0.0, )"
         }
       },
       "procurement.domain": {
@@ -527,7 +533,45 @@
           "Microsoft.EntityFrameworkCore": "[10.0.12, )",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.12, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
-          "Procurement.Application": "[1.0.0, )"
+          "Procurement.Application": "[1.0.0, )",
+          "Scm.Messaging": "[1.0.0, )"
+        }
+      },
+      "production.api": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.0.12, )",
+          "Microsoft.AspNetCore.OpenApi": "[10.0.12, )",
+          "Production.Application": "[1.0.0, )",
+          "Production.Persistence": "[1.0.0, )"
+        }
+      },
+      "production.application": {
+        "type": "Project",
+        "dependencies": {
+          "Production.Domain": "[1.0.0, )"
+        }
+      },
+      "production.domain": {
+        "type": "Project"
+      },
+      "production.persistence": {
+        "type": "Project",
+        "dependencies": {
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
+          "Production.Application": "[1.0.0, )",
+          "Scm.Messaging": "[1.0.0, )"
+        }
+      },
+      "scm.integrationcontracts": {
+        "type": "Project"
+      },
+      "scm.messaging": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore.Relational": "[10.0.12, )",
+          "RabbitMQ.Client": "[7.2.2, )",
+          "Scm.IntegrationContracts": "[1.0.0, )"
         }
       },
       "Microsoft.AspNetCore.Authentication.JwtBearer": {
@@ -581,6 +625,15 @@
           "Microsoft.EntityFrameworkCore": "[10.0.4, 11.0.0)",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.4, 11.0.0)",
           "Npgsql": "10.0.3"
+        }
+      },
+      "RabbitMQ.Client": {
+        "type": "CentralTransitive",
+        "requested": "[7.2.2, )",
+        "resolved": "7.2.2",
+        "contentHash": "k4b6RnTXpLbsF96V93ooNYxgPMnoA2tEm24B6AXNJr1mG8wwNYdA1XJtgU66L5xqeGyveS7SJriRzlX3cbqQNA==",
+        "dependencies": {
+          "System.Threading.RateLimiting": "8.0.0"
         }
       }
     }

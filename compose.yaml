@@ -1,4 +1,36 @@
 name: scm-collaboration
+x-api-environment: &api-environment
+  ASPNETCORE_ENVIRONMENT: Development
+  ASPNETCORE_URLS: http://0.0.0.0:8080
+  Auth__SigningKey: ${JWT_KEY:?Run scripts/init-local.ps1 first}
+  Messaging__Host: rabbitmq
+  Messaging__Port: 5672
+  Messaging__VirtualHost: scm
+x-procurement: &procurement
+  image: scm-procurement:1c-local
+  build:
+    context: .
+    dockerfile: infra/api.Dockerfile
+    args: { SERVICE: Procurement }
+  environment: &procurement-environment
+    <<: *api-environment
+    AllowedHosts: localhost;127.0.0.1;procurement-api
+    ConnectionStrings__Procurement: Host=postgres;Database=scm_procurement;Username=scm_procurement;Password=${PROCUREMENT_PASSWORD};GSS Encryption Mode=Disable
+    DemoAuth__Password: ${DEMO_PASSWORD}
+    Messaging__Username: scm_procurement
+    Messaging__Password: ${RABBITMQ_PROCUREMENT_PASSWORD}
+x-production: &production
+  image: scm-production:1c-local
+  build:
+    context: .
+    dockerfile: infra/api.Dockerfile
+    args: { SERVICE: Production }
+  environment: &production-environment
+    <<: *api-environment
+    AllowedHosts: localhost;127.0.0.1;production-api
+    ConnectionStrings__Production: Host=postgres;Database=scm_production;Username=scm_production;Password=${PRODUCTION_PASSWORD};GSS Encryption Mode=Disable
+    Messaging__Username: scm_production
+    Messaging__Password: ${RABBITMQ_PRODUCTION_PASSWORD}
 services:
   postgres:
     image: postgres:18.6-bookworm@sha256:3725f4e2499eef5134592b3b4ab79a543ed7f8e533b05b5b637af926630f6650
@@ -6,15 +38,81 @@ services:
       POSTGRES_USER: scm_admin
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run scripts/init-local.ps1 first}
       PROCUREMENT_PASSWORD: ${PROCUREMENT_PASSWORD:?Run scripts/init-local.ps1 first}
+      PRODUCTION_PASSWORD: ${PRODUCTION_PASSWORD:?Run scripts/init-local.ps1 first}
     ports:
       - "127.0.0.1:54329:5432"
     volumes:
       - procurement-data:/var/lib/postgresql
       - ./infra/postgres/init.sh:/docker-entrypoint-initdb.d/01-procurement.sh:ro
+      - ./infra/postgres/upgrade-1c.sql:/opt/scm/upgrade-1c.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U scm_admin -d postgres"]
       interval: 3s
       timeout: 3s
       retries: 20
+  rabbitmq:
+    image: rabbitmq:4.3.6-management@sha256:316ffd2a847e59112eee2c65f04bbd0989d93aaf1486c07b721f8d22d863b968
+    environment:
+      RABBITMQ_DEFAULT_USER: scm_mq_admin
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_ADMIN_PASSWORD:?Run scripts/init-local.ps1 first}
+    ports:
+      - "127.0.0.1:56729:5672"
+      - "127.0.0.1:15679:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+  database-upgrade:
+    image: postgres:18.6-bookworm@sha256:3725f4e2499eef5134592b3b4ab79a543ed7f8e533b05b5b637af926630f6650
+    depends_on: { postgres: { condition: service_healthy } }
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PRODUCTION_PASSWORD: ${PRODUCTION_PASSWORD}
+    volumes: ["./infra/postgres/upgrade-1c.sql:/opt/scm/upgrade-1c.sql:ro"]
+    entrypoint: ["sh", "-c"]
+    command: ['exec psql -h postgres -U scm_admin -d postgres -v production_password="$$PRODUCTION_PASSWORD" -f /opt/scm/upgrade-1c.sql']
+  procurement-init:
+    <<: *procurement
+    depends_on: { database-upgrade: { condition: service_completed_successfully } }
+    command: ["--initialize"]
+  production-init:
+    <<: *production
+    depends_on: { database-upgrade: { condition: service_completed_successfully } }
+    command: ["--initialize"]
+  messaging-init:
+    <<: *procurement
+    depends_on: { rabbitmq: { condition: service_healthy } }
+    environment:
+      <<: *procurement-environment
+      MessagingAdmin__Url: http://rabbitmq:15672/api/
+      MessagingAdmin__Username: scm_mq_admin
+      MessagingAdmin__Password: ${RABBITMQ_ADMIN_PASSWORD}
+      MessagingAdmin__ProcurementPassword: ${RABBITMQ_PROCUREMENT_PASSWORD}
+      MessagingAdmin__ProductionPassword: ${RABBITMQ_PRODUCTION_PASSWORD}
+    command: ["--initialize-messaging"]
+  procurement-api:
+    <<: *procurement
+    depends_on:
+      procurement-init: { condition: service_completed_successfully }
+      messaging-init: { condition: service_completed_successfully }
+    ports: ["127.0.0.1:5180:8080"]
+  production-api:
+    <<: *production
+    depends_on:
+      production-init: { condition: service_completed_successfully }
+      messaging-init: { condition: service_completed_successfully }
+    ports: ["127.0.0.1:5181:8080"]
+  web:
+    image: scm-web:1c-local
+    build: { context: ., dockerfile: infra/web.Dockerfile }
+    depends_on: [procurement-api, production-api]
+    environment:
+      PROCUREMENT_API_URL: http://procurement-api:8080
+      PRODUCTION_API_URL: http://production-api:8080
+    ports: ["127.0.0.1:5173:5173"]
 volumes:
   procurement-data:
+  rabbitmq-data:

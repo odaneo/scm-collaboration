@@ -55,6 +55,12 @@ public sealed class ApiFactory(string connection, string key, FailAfterSave fail
         builder.UseEnvironment(environment);
         builder.UseSetting("ConnectionStrings:Procurement", connection);
         builder.UseSetting("Auth:SigningKey", key);
+        builder.UseSetting("Messaging:Enabled", "false");
+        builder.UseSetting("Messaging:VirtualHost", "scm_1c_tests");
+        builder.UseSetting("Messaging:Port", Environment.GetEnvironmentVariable("SCM_TEST_MQ_PORT") ?? "56729");
+        builder.UseSetting("Messaging:Username", "scm_procurement_test");
+        builder.UseSetting("Messaging:Password", Environment.GetEnvironmentVariable("SCM_TEST_MQ_PROCUREMENT_PASSWORD"));
+        builder.UseSetting("Messaging:RetryMilliseconds", "100"); builder.UseSetting("Messaging:PollMilliseconds", "50");
         builder.ConfigureServices(services => services.AddDbContext<ProcurementDbContext>(options =>
         {
             options.AddInterceptors(failure);
@@ -73,6 +79,9 @@ public sealed class ApiFixture : IAsyncLifetime
     public ApiFactory Factory { get; private set; } = null!;
     public HttpClient Client { get; private set; } = null!;
     public Dictionary<string, string> Tokens { get; } = [];
+    public ProductionFactory ProductionFactory { get; private set; } = null!;
+    public HttpClient ProductionClient { get; private set; } = null!;
+    public FailAfterSave ProductionFailure { get; } = new();
 
     public async Task InitializeAsync()
     {
@@ -95,6 +104,8 @@ public sealed class ApiFixture : IAsyncLifetime
             response.EnsureSuccessStatusCode();
             Tokens[username] = (await response.Content.ReadFromJsonAsync<LoginResult>())!.Token;
         }
+        ProductionFactory = await ProductionFactory.Create(Key, ProductionFailure);
+        ProductionClient = ProductionFactory.CreateClient();
     }
     public static CreateDraftRequest Draft(int quantity = 100, Guid? factory = null, Guid? sku = null) =>
         new(factory ?? DemoSeed.FactoryA, new(2026, 10, 31), [new(sku ?? DemoSeed.SkuM, quantity), new(DemoSeed.SkuL, 50)]);
@@ -120,6 +131,7 @@ public sealed class ApiFixture : IAsyncLifetime
     public Task DisposeAsync()
     {
         Client?.Dispose(); Factory?.Dispose();
+        ProductionClient?.Dispose(); ProductionFactory?.Dispose();
         return Task.CompletedTask;
     }
 }

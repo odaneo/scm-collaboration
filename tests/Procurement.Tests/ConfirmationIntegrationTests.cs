@@ -10,6 +10,7 @@ using Npgsql;
 using Procurement.Api;
 using Procurement.Application;
 using Procurement.Persistence;
+using Scm.Messaging;
 
 namespace Procurement.Tests;
 
@@ -152,6 +153,9 @@ public sealed class ConfirmationIntegrationTests(ApiFixture f)
         Assert.True(versions.Count <= 1);
         if (mode.StartsWith("accept", StringComparison.Ordinal))
             Assert.Equal(detail.Status == "Accepted" ? "Accepted" : detail.Status == "Draft" ? "Withdrawn" : "Rejected", versions.Single().Status);
+        Assert.Equal(detail.Status == "Accepted" ? 1 : 0, await f.Db(db => db.Set<OutboxMessage>()
+            .CountAsync(x => x.EventType == "PurchaseOrderAcceptedV1" && db.Versions.Any(v => v.OrderId == order.OrderId && v.DecisionId == x.FactId))));
+        Assert.Equal(detail.Status == "Accepted" ? 1 : 0, await f.Db(db => db.Set<ProductionTaskLink>().CountAsync(x => x.OrderId == order.OrderId)));
     }
     [Fact]
     public async Task Concurrent_same_key_submission_and_acceptance_each_have_only_one_fact_and_audit()

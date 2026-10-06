@@ -267,7 +267,8 @@
       "procurement.application": {
         "type": "Project",
         "dependencies": {
-          "Procurement.Domain": "[1.0.0, )"
+          "Procurement.Domain": "[1.0.0, )",
+          "Scm.IntegrationContracts": "[1.0.0, )"
         }
       },
       "procurement.domain": {
@@ -279,7 +280,19 @@
           "Microsoft.EntityFrameworkCore": "[10.0.12, )",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.12, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
-          "Procurement.Application": "[1.0.0, )"
+          "Procurement.Application": "[1.0.0, )",
+          "Scm.Messaging": "[1.0.0, )"
+        }
+      },
+      "scm.integrationcontracts": {
+        "type": "Project"
+      },
+      "scm.messaging": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore.Relational": "[10.0.12, )",
+          "RabbitMQ.Client": "[7.2.2, )",
+          "Scm.IntegrationContracts": "[1.0.0, )"
         }
       },
       "Microsoft.EntityFrameworkCore": {
@@ -311,6 +324,12 @@
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.4, 11.0.0)",
           "Npgsql": "10.0.3"
         }
+      },
+      "RabbitMQ.Client": {
+        "type": "CentralTransitive",
+        "requested": "[7.2.2, )",
+        "resolved": "7.2.2",
+        "contentHash": "k4b6RnTXpLbsF96V93ooNYxgPMnoA2tEm24B6AXNJr1mG8wwNYdA1XJtgU66L5xqeGyveS7SJriRzlX3cbqQNA=="
       }
     }
   }

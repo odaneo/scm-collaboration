@@ -118,7 +118,7 @@ public sealed class PurchaseOrder
         Revision = nextRevision;
         Status = "Draft";
     }
-    public void AcceptVersion(SubmittedOrderVersion version, Guid factoryId, string subject, DateTimeOffset at)
+    public OrderVersionAccepted AcceptVersion(SubmittedOrderVersion version, Guid factoryId, string subject, DateTimeOffset at)
     {
         RequireFactoryVersion(version, factoryId);
         var nextRevision = checked(Revision + 1);
@@ -126,6 +126,7 @@ public sealed class PurchaseOrder
         Revision = nextRevision;
         Status = "Accepted";
         AcceptedOrderVersion = version.Version;
+        return new(Id, version.Version, version.FactoryId, version.DecisionId!.Value, Revision, version.ResolvedAt!.Value);
     }
     public void RejectVersion(SubmittedOrderVersion version, Guid factoryId, string subject, DateTimeOffset at, string? reason)
     {

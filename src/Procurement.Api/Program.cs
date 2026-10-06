@@ -8,6 +8,7 @@ using Microsoft.IdentityModel.Tokens;
 using Procurement.Api;
 using Procurement.Application;
 using Procurement.Persistence;
+using Scm.Messaging;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
@@ -20,6 +21,7 @@ builder.Services.AddDbContext<ProcurementDbContext>(options => options.UseNpgsql
     ?? throw new InvalidOperationException("缺少采购数据库连接配置。")));
 builder.Services.AddScoped<IProcurementStore, ProcurementStore>();
 builder.Services.AddScoped<ProcurementService>();
+builder.Services.AddScmMessaging<ProcurementDbContext, ProcurementMessageHandler>(builder.Configuration, "Procurement");
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<PasswordHasher<DemoUser>>();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
@@ -68,6 +70,21 @@ builder.Services.Configure<Microsoft.AspNetCore.RateLimiting.RateLimiterOptions>
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests);
 
 var app = builder.Build();
+if (args.Contains("--initialize-messaging") || args.Contains("--backfill-production") || args.Contains("--inspect-messages") || args.Contains("--retry-message"))
+{
+    if (!app.Environment.IsDevelopment()) throw new InvalidOperationException("演示维护命令只允许 Development。");
+    using var maintenanceScope = app.Services.CreateScope();
+    var maintenanceDb = maintenanceScope.ServiceProvider.GetRequiredService<ProcurementDbContext>();
+    if (args.Contains("--initialize-messaging")) await MessagingAdministration.Initialize(app.Configuration);
+    else if (args.Contains("--backfill-production")) await ProductionTaskBackfill.Run(maintenanceDb, args.Contains("--apply"));
+    else
+    {
+        Guid? id = args.Contains("--retry-message") ? Guid.Parse(args[Array.IndexOf(args, "--retry-message") + 1]) : null;
+        await MessagingAdministration.InspectOrRetry(maintenanceDb, maintenanceScope.ServiceProvider.GetRequiredService<MessagingOptions>().ConsumerName, id,
+            maintenanceScope.ServiceProvider.GetRequiredService<MessageProcessor<ProcurementDbContext>>());
+    }
+    return;
+}
 if (args.Contains("--initialize"))
 {
     if (!app.Environment.IsDevelopment()) throw new InvalidOperationException("演示初始化只允许 Development 环境。");
